@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+  app:
+    build: .
+    container_name: app
+
+# kubectl apply -f helloweb-deployment.yaml
+# kubectl apply -f helloweb-hpa.yaml
+# kubectl apply -f helloweb-ingress-static-ip.yaml
+# kubectl apply -f helloweb-sevice-static-ip.yaml
+# git push origin master
+# kubectl get pods

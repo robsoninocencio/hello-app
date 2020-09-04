@@ -1,0 +1,45 @@
+steps:
+    # Aqui subo os containers atraves do docker-compose.cloudbuild com tudo que é preciso na imagem para os testes usando o Dockerfile
+  - id: "Rodando docker-compose"
+    name: "gcr.io/$PROJECT_ID/docker-compose:1.25.5"
+    args: ["-f", "docker-compose.cloudbuild.yaml", "up", "-d"]#
+
+    # Aqui inicio minha esteira de testes
+  - id: "Rodando ps no container"
+    name: "gcr.io/cloud-builders/docker"
+    args: ["exec", "-t", "app", 
+           "ps"]
+    # Como vimos acima eu posso entrar no meu container e fazer o que quiser nele, se não houver erro ele continua
+
+    # Aqui agora que eu sei que os testes passaram, eu crio uma imagem limpa e segura 
+    # com apenas o que precisa para rodar em produção usando o Dokerfile.prod  
+  - id: "Building image from Dockerfile.prod"
+    name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/app:$SHORT_SHA", "-f", "Dockerfile.prod", "."]
+
+    # Aqui eu envio a imagem limpa criada para o meu container registry
+  - id: "Pushing image"
+    name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/$PROJECT_ID/app:$SHORT_SHA"]
+
+    # Aqui eu ajusto o meu arquivo de deploy helloweb-deployment.yaml para usar a imagem que eu subi no container registry
+  - id: "Adjusting deployment file -k8s"
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: '/bin/sh'
+    args: 
+      - "-c"
+      - |
+        sed "s#img-app-deployment#gcr.io/$PROJECT_ID/app:$SHORT_SHA#g" manifests/helloweb-deployment.yaml > manifests/helloweb-deployment-new.yaml;
+        cat manifests/helloweb-deployment-new.yaml;
+
+    # Aqui eu aplico meu helloweb-deployment.yaml onde ficara no ar o container que passou por toda a esteira de testes.
+  - id: "Deploying k8s"
+    name: "gcr.io/cloud-builders/kubectl"
+    args: 
+      - "apply"
+      - "-f"
+      - "manifests/deployment-new.yaml"
+    env:
+    - "CLOUDSDK_COMPUTE_ZONE=us-central1-c"
+    - "CLOUDSDK_CONTAINER_CLUSTER=cluster-hello-app"
+    
